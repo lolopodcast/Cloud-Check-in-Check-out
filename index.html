@@ -212,6 +212,8 @@ footer a{color:var(--primary);text-decoration:none}
     <button class="btn btn-checkin" id="btnCheckin" disabled onclick="doCheck('in')">簽到</button>
     <button class="btn btn-checkout" id="btnCheckout" disabled onclick="doCheck('out')">簽退</button>
 
+    <button class="btn btn-secondary" style="background:#e65100;margin-top:8px" onclick="testUpload()">測試雲端連線</button>
+
     <div class="records-section">
       <h2>今日紀錄</h2>
       <div id="todayRecords"></div>
@@ -518,7 +520,7 @@ async function finalizeCheck(type, photoBase64) {
 }
 
 async function uploadToGoogle(record) {
-  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
     toast(record.type + '成功！（尚未設定雲端網址）');
     return;
   }
@@ -527,12 +529,27 @@ async function uploadToGoogle(record) {
   overlay.classList.remove('hidden');
 
   try {
-    const resp = await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(record)
+    // 用 GET 上傳打卡紀錄（最可靠的跨域方式）
+    const params = new URLSearchParams({
+      action: 'checkin',
+      id: record.studentId,
+      name: record.studentName,
+      date: record.date,
+      time: record.time,
+      type: record.type,
+      lat: record.lat,
+      lng: record.lng,
+      acc: record.accuracy,
+      dist: record.distance
     });
+
+    await loadScript(GOOGLE_SCRIPT_URL + '?' + params.toString());
+
+    // 照片用 POST（較大）
+    if (record.photo) {
+      await postPhoto(record.photo, record.photoName);
+    }
+
     toast(record.type + '成功！已上傳雲端');
   } catch (e) {
     console.error('Upload error:', e);
@@ -540,6 +557,91 @@ async function uploadToGoogle(record) {
   } finally {
     overlay.classList.add('hidden');
   }
+}
+
+function callback(data) {
+  console.log('Google Script response:', data);
+}
+
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = () => { s.remove(); resolve(); };
+    s.onerror = () => { s.remove(); reject(new Error('Script load failed')); };
+    document.head.appendChild(s);
+  });
+}
+
+async function testUpload() {
+  if (!currentUser) { toast('請先登入'); return; }
+  toast('測試中...');
+  try {
+    const params = new URLSearchParams({
+      action: 'checkin',
+      id: currentUser.id,
+      name: currentUser.name,
+      date: todayStr(),
+      time: formatTime(new Date().toISOString()),
+      type: '測試',
+      lat: '24.22',
+      lng: '120.63',
+      acc: '0',
+      dist: '0'
+    });
+    const url = GOOGLE_SCRIPT_URL + '?' + params.toString();
+    console.log('Test URL:', url);
+
+    // 方法1: script tag
+    try {
+      await loadScript(url);
+      toast('Script 方式已送出，請查看 Sheet');
+      return;
+    } catch (e1) {
+      console.log('Script method failed:', e1);
+    }
+
+    // 方法2: img tag
+    const img = new Image();
+    img.src = url;
+    toast('Image 方式已送出，請查看 Sheet');
+
+  } catch (e) {
+    toast('測試失敗: ' + e.message);
+    console.error(e);
+  }
+}
+
+function postPhoto(base64, photoName) {
+  return new Promise((resolve) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GOOGLE_SCRIPT_URL;
+    form.target = 'upload_frame';
+    form.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify({ photo: base64, photoName: photoName });
+    form.appendChild(input);
+
+    let iframe = document.getElementById('upload_frame');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'upload_frame';
+      iframe.name = 'upload_frame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    iframe.onload = () => resolve();
+    setTimeout(() => resolve(), 15000);
+
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  });
 }
 
 // ── Records ──
