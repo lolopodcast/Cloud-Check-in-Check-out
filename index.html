@@ -246,7 +246,7 @@ footer a{color:var(--primary);text-decoration:none}
 
 <footer>
   Creator: <a href="https://www.ibs.ncnu.edu.tw/index.php/faculty/tenured-professor/299-smlo" target="_blank" rel="noopener">Prof. Shihmin Lo</a>
-  <br>v2025.05.30a
+  <br>v2026.05.30a
 </footer>
 
 <div class="toast" id="toast"></div>
@@ -419,24 +419,26 @@ function capturePhoto() {
   const canvas = document.getElementById('cameraCanvas');
   const preview = document.getElementById('cameraPreview');
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  const MAX_W = 320;
+  const scale = Math.min(MAX_W / video.videoWidth, 1);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
   const ctx = canvas.getContext('2d');
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   const now = new Date();
   const stamp = `${currentUser.name} (${currentUser.id}) | ${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW')} | ${pendingCheckType === 'in' ? '簽到' : '簽退'}`;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(0, canvas.height - 32, canvas.width, 32);
+  ctx.fillRect(0, canvas.height - 24, canvas.width, 24);
   ctx.fillStyle = '#fff';
-  ctx.font = '14px sans-serif';
+  ctx.font = '11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(stamp, canvas.width / 2, canvas.height - 10);
+  ctx.fillText(stamp, canvas.width / 2, canvas.height - 7);
 
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.4);
   capturedBase64 = dataUrl.split(',')[1];
 
   preview.src = dataUrl;
@@ -546,9 +548,14 @@ async function uploadToGoogle(record) {
 
     await iframeGet(GOOGLE_SCRIPT_URL + '?' + params.toString());
 
-    // 照片用 POST（較大）
+    // 照片也用 iframe GET（壓縮後夠小）
     if (record.photo) {
-      await postPhoto(record.photo, record.photoName);
+      const photoParams = new URLSearchParams({
+        action: 'photo',
+        photo: record.photo,
+        photoName: record.photoName
+      });
+      await iframeGet(GOOGLE_SCRIPT_URL + '?' + photoParams.toString());
     }
 
     toast(record.type + '成功！已上傳雲端');
@@ -610,37 +617,6 @@ async function testUpload() {
   toast('已送出，請等 5 秒後查看 Sheet');
 }
 
-function postPhoto(base64, photoName) {
-  return new Promise((resolve) => {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = GOOGLE_SCRIPT_URL;
-    form.target = 'upload_frame';
-    form.style.display = 'none';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payload';
-    input.value = JSON.stringify({ photo: base64, photoName: photoName });
-    form.appendChild(input);
-
-    let iframe = document.getElementById('upload_frame');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'upload_frame';
-      iframe.name = 'upload_frame';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-    }
-
-    iframe.onload = () => resolve();
-    setTimeout(() => resolve(), 15000);
-
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
-  });
-}
 
 // ── Records ──
 function getRecords() {
