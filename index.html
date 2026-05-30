@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>雲端打卡簽到系統 — NCNU EMBA</title>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -91,6 +90,13 @@ header .datetime{font-size:.75rem;opacity:.7;font-family:monospace}
 .dot-warn{background:var(--warn)}
 .dot-bad{background:var(--danger)}
 
+.cloud-bar{
+  display:flex;align-items:center;gap:8px;
+  background:#e8f5e9;border-radius:12px;padding:10px 16px;
+  margin-bottom:16px;font-size:.78rem;color:#2e7d32;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+
 .records-section{margin-top:8px}
 .records-section h2{font-size:1rem;margin-bottom:12px;color:var(--muted)}
 .record-item{
@@ -107,32 +113,6 @@ header .datetime{font-size:.75rem;opacity:.7;font-family:monospace}
 .record-time{color:var(--text);font-weight:500}
 .record-date{color:var(--muted);font-size:.75rem}
 
-.settings-panel{
-  background:var(--card);border-radius:var(--radius);padding:20px;
-  margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);
-  display:none;
-}
-.settings-panel h3{font-size:.95rem;margin-bottom:12px}
-.settings-panel label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
-.settings-panel input{
-  width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;
-  font-size:.85rem;margin-bottom:12px;
-}
-.settings-panel .btn{font-size:.85rem;padding:10px}
-
-.export-bar{
-  display:flex;gap:8px;margin-top:8px;
-}
-.export-bar .btn{flex:1;font-size:.8rem;padding:10px;margin:0}
-
-.folder-bar{
-  display:flex;align-items:center;gap:8px;
-  background:#e8f5e9;border-radius:12px;padding:10px 16px;
-  margin-bottom:16px;font-size:.78rem;color:#2e7d32;
-  box-shadow:0 1px 4px rgba(0,0,0,.05);
-}
-.folder-bar.disconnected{background:#fff3e0;color:#e65100}
-
 .empty-msg{text-align:center;color:var(--muted);font-size:.85rem;padding:32px 0}
 
 .toast{
@@ -142,6 +122,19 @@ header .datetime{font-size:.75rem;opacity:.7;font-family:monospace}
   transition:transform .3s ease;
 }
 .toast.show{transform:translateX(-50%) translateY(0)}
+
+.uploading{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1001;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:12px;color:#fff;font-size:1rem;
+}
+.uploading.hidden{display:none}
+.spinner{
+  width:40px;height:40px;border:4px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* Camera Modal */
 .camera-overlay{
@@ -201,9 +194,8 @@ footer a{color:var(--primary);text-decoration:none}
       <button class="logout" onclick="doLogout()">登出</button>
     </div>
 
-    <div class="folder-bar disconnected" id="folderBar">
-      <span id="folderText">尚未連結儲存資料夾</span>
-      <button class="logout" style="margin-left:auto;white-space:nowrap" onclick="pickFolder()">選擇資料夾</button>
+    <div class="cloud-bar">
+      <span>☁️ 打卡紀錄與照片自動上傳至雲端</span>
     </div>
 
     <div class="status-card">
@@ -223,32 +215,6 @@ footer a{color:var(--primary);text-decoration:none}
     <div class="records-section">
       <h2>今日紀錄</h2>
       <div id="todayRecords"></div>
-    </div>
-
-    <div class="export-bar">
-      <button class="btn btn-secondary btn-small" onclick="showAllRecords()">歷史紀錄</button>
-      <button class="btn btn-secondary btn-small" onclick="exportCSV()">匯出 CSV</button>
-      <button class="btn btn-secondary btn-small" onclick="toggleSettings()">設定</button>
-    </div>
-
-    <div class="settings-panel" id="settingsPanel">
-      <h3>打卡地點設定</h3>
-      <label>地點名稱</label>
-      <input type="text" id="setName" placeholder="公司名稱">
-      <label>緯度 (Latitude)</label>
-      <input type="number" id="setLat" step="0.0000001" placeholder="24.2336">
-      <label>經度 (Longitude)</label>
-      <input type="number" id="setLng" step="0.0000001" placeholder="120.6347">
-      <label>允許半徑 (公尺)</label>
-      <input type="number" id="setRadius" step="10" placeholder="100">
-      <label>GPS 精度門檻 (公尺，超過此值禁止打卡)</label>
-      <input type="number" id="setAccThreshold" step="10" placeholder="150">
-      <button class="btn btn-checkin" onclick="saveSettings()">儲存設定</button>
-    </div>
-
-    <div class="records-section" id="allRecordsSection" style="display:none;margin-top:16px">
-      <h2>所有歷史紀錄</h2>
-      <div id="allRecords"></div>
     </div>
   </div>
 
@@ -270,6 +236,12 @@ footer a{color:var(--primary);text-decoration:none}
   </div>
 </div>
 
+<!-- Uploading Overlay -->
+<div class="uploading hidden" id="uploadingOverlay">
+  <div class="spinner"></div>
+  <div>上傳中，請稍候...</div>
+</div>
+
 <footer>
   Creator: <a href="https://www.ibs.ncnu.edu.tw/index.php/faculty/tenured-professor/299-smlo" target="_blank" rel="noopener">Prof. Shihmin Lo</a>
 </footer>
@@ -277,6 +249,11 @@ footer a{color:var(--primary);text-decoration:none}
 <div class="toast" id="toast"></div>
 
 <script>
+// ============================================================
+// ★ 請將 Google Apps Script 部署網址貼在這裡 ★
+// ============================================================
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8I3lW951v-ObgOxZ1GhFKX46M7tHNkIt-Ki-MZiVMXPSl9goGwOLBlwjnDGhva4k/exec';
+
 const STUDENTS = {
   '113243501': '徐懷恩',
   '113243502': '白湘苓',
@@ -305,7 +282,7 @@ const STUDENTS = {
   '114243514': '林志貞'
 };
 
-const DEFAULT_CONFIG = {
+const CONFIG = {
   name: '中科106會議室（台中市大雅區科雅路48號）',
   lat: 24.224724666398455,
   lng: 120.62979223646165,
@@ -314,16 +291,13 @@ const DEFAULT_CONFIG = {
 };
 
 let currentUser = null;
-let dirHandle = null;
 let currentPosition = null;
 let currentAccuracy = null;
 let currentDistance = null;
 let watchId = null;
-
-// Camera state
 let cameraStream = null;
 let pendingCheckType = null;
-let capturedBlob = null;
+let capturedBase64 = null;
 
 // ── Header Clock ──
 function updateClock() {
@@ -345,8 +319,7 @@ setInterval(updateClock, 1000);
   g113.label = '113 級';
   ids113.forEach(id => {
     const o = document.createElement('option');
-    o.value = id;
-    o.textContent = `${id}　${STUDENTS[id]}`;
+    o.value = id; o.textContent = `${id}　${STUDENTS[id]}`;
     g113.appendChild(o);
   });
   sel.appendChild(g113);
@@ -355,8 +328,7 @@ setInterval(updateClock, 1000);
   g114.label = '114 級';
   ids114.forEach(id => {
     const o = document.createElement('option');
-    o.value = id;
-    o.textContent = `${id}　${STUDENTS[id]}`;
+    o.value = id; o.textContent = `${id}　${STUDENTS[id]}`;
     g114.appendChild(o);
   });
   sel.appendChild(g114);
@@ -412,7 +384,7 @@ function showMainApp() {
 // ── Camera ──
 async function openCamera(type) {
   pendingCheckType = type;
-  capturedBlob = null;
+  capturedBase64 = null;
   const overlay = document.getElementById('cameraOverlay');
   const video = document.getElementById('cameraVideo');
   const preview = document.getElementById('cameraPreview');
@@ -461,31 +433,29 @@ function capturePhoto() {
   ctx.textAlign = 'center';
   ctx.fillText(stamp, canvas.width / 2, canvas.height - 10);
 
-  canvas.toBlob(blob => {
-    capturedBlob = blob;
-    preview.src = URL.createObjectURL(blob);
-    video.style.display = 'none';
-    preview.style.display = '';
-    document.getElementById('cameraBtnsLive').style.display = 'none';
-    document.getElementById('cameraBtnsReview').style.display = 'flex';
-  }, 'image/jpeg', 0.85);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  capturedBase64 = dataUrl.split(',')[1];
+
+  preview.src = dataUrl;
+  video.style.display = 'none';
+  preview.style.display = '';
+  document.getElementById('cameraBtnsLive').style.display = 'none';
+  document.getElementById('cameraBtnsReview').style.display = 'flex';
 }
 
 function retakePhoto() {
-  const video = document.getElementById('cameraVideo');
-  const preview = document.getElementById('cameraPreview');
-  video.style.display = '';
-  preview.style.display = 'none';
+  document.getElementById('cameraVideo').style.display = '';
+  document.getElementById('cameraPreview').style.display = 'none';
   document.getElementById('cameraBtnsLive').style.display = 'flex';
   document.getElementById('cameraBtnsReview').style.display = 'none';
-  capturedBlob = null;
+  capturedBase64 = null;
 }
 
 function cancelCamera() {
   stopCamera();
   document.getElementById('cameraOverlay').classList.add('hidden');
   pendingCheckType = null;
-  capturedBlob = null;
+  capturedBase64 = null;
 }
 
 function stopCamera() {
@@ -498,158 +468,81 @@ function stopCamera() {
 async function confirmPhoto() {
   stopCamera();
   document.getElementById('cameraOverlay').classList.add('hidden');
-  await finalizeCheck(pendingCheckType, capturedBlob);
+  await finalizeCheck(pendingCheckType, capturedBase64);
   pendingCheckType = null;
-  capturedBlob = null;
+  capturedBase64 = null;
 }
 
 // ── Check-in Flow ──
 function doCheck(type) {
   if (!currentPosition || !currentUser) return;
-  const config = getConfig();
-  if (currentDistance > config.radius) { toast('不在打卡範圍內！'); return; }
-  if (currentAccuracy > config.accThreshold) { toast('GPS 精度不足！'); return; }
+  if (currentDistance > CONFIG.radius) { toast('不在打卡範圍內！'); return; }
+  if (currentAccuracy > CONFIG.accThreshold) { toast('GPS 精度不足！'); return; }
   openCamera(type);
 }
 
-async function finalizeCheck(type, photoBlob) {
+async function finalizeCheck(type, photoBase64) {
   const now = new Date();
+  const timeTag = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const photoName = `${todayStr()}_${timeTag}_${currentUser.id}_${currentUser.name}_${type === 'in' ? '簽到' : '簽退'}.jpg`;
+
   const record = {
-    type,
+    type: type === 'in' ? '簽到' : '簽退',
     timestamp: now.toISOString(),
     date: todayStr(),
+    time: formatTime(now.toISOString()),
     studentId: currentUser.id,
     studentName: currentUser.name,
     lat: currentPosition.lat,
     lng: currentPosition.lng,
     accuracy: currentAccuracy,
-    distance: currentDistance
+    distance: currentDistance,
+    photo: photoBase64,
+    photoName: photoName
   };
 
+  // 存到 localStorage（備份）
   const records = getRecords();
-  records.push(record);
+  records.push({
+    type, date: record.date, time: record.time,
+    studentId: record.studentId, studentName: record.studentName,
+    timestamp: record.timestamp,
+    lat: record.lat, lng: record.lng,
+    accuracy: record.accuracy, distance: record.distance
+  });
   saveRecords(records);
   renderTodayRecords();
 
-  if (dirHandle) {
-    const timeTag = now.toTimeString().slice(0, 8).replace(/:/g, '');
-    const photoName = `${record.date}_${timeTag}_${currentUser.id}_${currentUser.name}_${type === 'in' ? '簽到' : '簽退'}.jpg`;
-    await savePhotoToFolder(photoBlob, photoName);
-    await saveToExcel(record);
-  }
-
-  toast(type === 'in' ? '簽到成功！' : '簽退成功！');
+  // 上傳到 Google Sheet
+  await uploadToGoogle(record);
 }
 
-// ── File System Access API ──
-async function pickFolder() {
-  if (!('showDirectoryPicker' in window)) {
-    toast('此瀏覽器不支援資料夾存取，請使用 Chrome');
+async function uploadToGoogle(record) {
+  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+    toast(record.type + '成功！（尚未設定雲端網址）');
     return;
   }
+
+  const overlay = document.getElementById('uploadingOverlay');
+  overlay.classList.remove('hidden');
+
   try {
-    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    updateFolderBar();
-    toast('資料夾已連結！');
+    const resp = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(record)
+    });
+    toast(record.type + '成功！已上傳雲端');
   } catch (e) {
-    if (e.name !== 'AbortError') toast('無法取得資料夾權限');
+    console.error('Upload error:', e);
+    toast(record.type + '成功！但雲端上傳失敗，紀錄已存本機');
+  } finally {
+    overlay.classList.add('hidden');
   }
 }
 
-function updateFolderBar() {
-  const bar = document.getElementById('folderBar');
-  const text = document.getElementById('folderText');
-  if (dirHandle) {
-    bar.classList.remove('disconnected');
-    text.textContent = `已連結：${dirHandle.name}`;
-  } else {
-    bar.classList.add('disconnected');
-    text.textContent = '尚未連結儲存資料夾';
-  }
-}
-
-async function savePhotoToFolder(blob, fileName) {
-  if (!dirHandle || !blob) return;
-  try {
-    let photosDir;
-    try {
-      photosDir = await dirHandle.getDirectoryHandle('打卡照片', { create: true });
-    } catch (e) { photosDir = dirHandle; }
-    const fh = await photosDir.getFileHandle(fileName, { create: true });
-    const w = await fh.createWritable();
-    await w.write(blob);
-    await w.close();
-  } catch (e) {
-    console.error('Photo save error:', e);
-  }
-}
-
-async function saveToExcel(record) {
-  if (!dirHandle) return;
-  try {
-    const fileName = `打卡紀錄.xlsx`;
-    let wb;
-    try {
-      const existFile = await dirHandle.getFileHandle(fileName);
-      const file = await existFile.getFile();
-      const buf = await file.arrayBuffer();
-      wb = XLSX.read(buf, { type: 'array' });
-    } catch (e) {
-      wb = XLSX.utils.book_new();
-    }
-
-    const sheetName = '打卡紀錄';
-    let data;
-    if (wb.SheetNames.includes(sheetName)) {
-      const ws = wb.Sheets[sheetName];
-      data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-    } else {
-      data = [['學號', '姓名', '日期', '時間', '類型', '緯度', '經度', '精度(m)', '距離(m)', '照片檔名']];
-    }
-
-    const timeTag = new Date(record.timestamp).toTimeString().slice(0, 8).replace(/:/g, '');
-    const photoName = `${record.date}_${timeTag}_${record.studentId}_${record.studentName}_${record.type === 'in' ? '簽到' : '簽退'}.jpg`;
-
-    data.push([
-      record.studentId,
-      record.studentName,
-      record.date,
-      formatTime(record.timestamp),
-      record.type === 'in' ? '簽到' : '簽退',
-      record.lat,
-      record.lng,
-      record.accuracy,
-      record.distance,
-      photoName
-    ]);
-
-    const newWs = XLSX.utils.aoa_to_sheet(data);
-    const colWidths = [12, 8, 12, 10, 6, 12, 12, 8, 8, 45];
-    newWs['!cols'] = colWidths.map(w => ({ wch: w }));
-
-    if (wb.SheetNames.includes(sheetName)) {
-      wb.Sheets[sheetName] = newWs;
-    } else {
-      XLSX.utils.book_append_sheet(wb, newWs, sheetName);
-    }
-
-    const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const fh = await dirHandle.getFileHandle(fileName, { create: true });
-    const writable = await fh.createWritable();
-    await writable.write(new Uint8Array(wbOut));
-    await writable.close();
-  } catch (e) {
-    console.error('Excel save error:', e);
-    toast('儲存 Excel 失敗');
-  }
-}
-
-// ── Config & Records ──
-function getConfig() {
-  const saved = localStorage.getItem('checkin_config');
-  return saved ? JSON.parse(saved) : { ...DEFAULT_CONFIG };
-}
-
+// ── Records ──
 function getRecords() {
   const saved = localStorage.getItem('checkin_records');
   return saved ? JSON.parse(saved) : [];
@@ -682,11 +575,6 @@ function formatTime(iso) {
   return d.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 }
 
-function formatDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' });
-}
-
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -706,7 +594,7 @@ function renderTodayRecords() {
         <span class="record-type ${r.type === 'in' ? 'type-in' : 'type-out'}">${r.type === 'in' ? '簽到' : '簽退'}</span>
       </div>
       <div style="text-align:right">
-        <div class="record-time">${formatTime(r.timestamp)}</div>
+        <div class="record-time">${r.time || formatTime(r.timestamp)}</div>
         <div class="record-date">距離 ${r.distance}m · 精度 ${r.accuracy}m</div>
       </div>
     </div>
@@ -714,11 +602,10 @@ function renderTodayRecords() {
 }
 
 function updateGPS(pos) {
-  const config = getConfig();
   const { latitude, longitude, accuracy } = pos.coords;
   currentPosition = { lat: latitude, lng: longitude };
   currentAccuracy = Math.round(accuracy);
-  currentDistance = Math.round(haversine(latitude, longitude, config.lat, config.lng));
+  currentDistance = Math.round(haversine(latitude, longitude, CONFIG.lat, CONFIG.lng));
 
   const statusIcon = document.getElementById('statusIcon');
   const statusText = document.getElementById('statusText');
@@ -731,12 +618,12 @@ function updateGPS(pos) {
 
   accuracyBar.style.display = 'flex';
 
-  if (currentAccuracy > config.accThreshold) {
+  if (currentAccuracy > CONFIG.accThreshold) {
     statusIcon.textContent = '⚠️';
     statusText.textContent = 'GPS 精度不足，無法打卡';
     statusDetail.textContent = `請使用手機並開啟 GPS（目前精度 ${currentAccuracy}m）`;
     accuracyDot.className = 'accuracy-dot dot-bad';
-    accuracyText.textContent = `精度 ${currentAccuracy}m（需 < ${config.accThreshold}m）`;
+    accuracyText.textContent = `精度 ${currentAccuracy}m（需 < ${CONFIG.accThreshold}m）`;
     btnIn.disabled = true;
     btnOut.disabled = true;
     return;
@@ -747,7 +634,7 @@ function updateGPS(pos) {
   else accuracyDot.className = 'accuracy-dot dot-bad';
   accuracyText.textContent = `GPS 精度 ${currentAccuracy}m · 距打卡點 ${currentDistance}m`;
 
-  if (currentDistance <= config.radius) {
+  if (currentDistance <= CONFIG.radius) {
     statusIcon.textContent = '✅';
     statusText.textContent = '您在打卡範圍內';
     statusDetail.textContent = `距離打卡點 ${currentDistance} 公尺`;
@@ -756,7 +643,7 @@ function updateGPS(pos) {
   } else {
     statusIcon.textContent = '❌';
     statusText.textContent = '不在打卡範圍內';
-    statusDetail.textContent = `距離打卡點 ${currentDistance} 公尺（需在 ${config.radius}m 內）`;
+    statusDetail.textContent = `距離打卡點 ${currentDistance} 公尺（需在 ${CONFIG.radius}m 內）`;
     btnIn.disabled = true;
     btnOut.disabled = true;
   }
@@ -787,80 +674,6 @@ function startGPS() {
     timeout: 15000,
     maximumAge: 5000
   });
-}
-
-function showAllRecords() {
-  const section = document.getElementById('allRecordsSection');
-  const container = document.getElementById('allRecords');
-  if (section.style.display === 'none') {
-    section.style.display = 'block';
-    const records = getRecords().filter(r => r.studentId === currentUser?.id).reverse();
-    if (!records.length) {
-      container.innerHTML = '<div class="empty-msg">尚無任何紀錄</div>';
-      return;
-    }
-    container.innerHTML = records.map(r => `
-      <div class="record-item">
-        <div>
-          <span class="record-type ${r.type === 'in' ? 'type-in' : 'type-out'}">${r.type === 'in' ? '簽到' : '簽退'}</span>
-          <span class="record-date" style="margin-left:8px">${formatDate(r.timestamp)}</span>
-        </div>
-        <div style="text-align:right">
-          <div class="record-time">${formatTime(r.timestamp)}</div>
-          <div class="record-date">距離 ${r.distance}m</div>
-        </div>
-      </div>
-    `).join('');
-  } else {
-    section.style.display = 'none';
-  }
-}
-
-function exportCSV() {
-  const records = getRecords().filter(r => r.studentId === currentUser?.id);
-  if (!records.length) { toast('沒有紀錄可匯出'); return; }
-  const header = '學號,姓名,日期,時間,類型,緯度,經度,精度(m),距離(m)\n';
-  const rows = records.map(r =>
-    `${r.studentId},${r.studentName},${r.date},${formatTime(r.timestamp)},${r.type === 'in' ? '簽到' : '簽退'},${r.lat},${r.lng},${r.accuracy},${r.distance}`
-  ).join('\n');
-  const blob = new Blob(['﻿' + header + rows], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `打卡紀錄_${currentUser.id}_${todayStr()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('CSV 已下載');
-}
-
-function toggleSettings() {
-  const panel = document.getElementById('settingsPanel');
-  if (panel.style.display === 'none') {
-    const config = getConfig();
-    document.getElementById('setName').value = config.name;
-    document.getElementById('setLat').value = config.lat;
-    document.getElementById('setLng').value = config.lng;
-    document.getElementById('setRadius').value = config.radius;
-    document.getElementById('setAccThreshold').value = config.accThreshold;
-    panel.style.display = 'block';
-  } else {
-    panel.style.display = 'none';
-  }
-}
-
-function saveSettings() {
-  const config = {
-    name: document.getElementById('setName').value || DEFAULT_CONFIG.name,
-    lat: parseFloat(document.getElementById('setLat').value) || DEFAULT_CONFIG.lat,
-    lng: parseFloat(document.getElementById('setLng').value) || DEFAULT_CONFIG.lng,
-    radius: parseInt(document.getElementById('setRadius').value) || DEFAULT_CONFIG.radius,
-    accThreshold: parseInt(document.getElementById('setAccThreshold').value) || DEFAULT_CONFIG.accThreshold
-  };
-  localStorage.setItem('checkin_config', JSON.stringify(config));
-  document.getElementById('settingsPanel').style.display = 'none';
-  toast('設定已儲存');
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  startGPS();
 }
 </script>
 </body>
