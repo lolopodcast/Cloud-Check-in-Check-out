@@ -529,7 +529,7 @@ async function uploadToGoogle(record) {
   overlay.classList.remove('hidden');
 
   try {
-    // 用 GET 上傳打卡紀錄（最可靠的跨域方式）
+    // 用 iframe GET 上傳打卡紀錄
     const params = new URLSearchParams({
       action: 'checkin',
       id: record.studentId,
@@ -543,7 +543,7 @@ async function uploadToGoogle(record) {
       dist: record.distance
     });
 
-    await loadScript(GOOGLE_SCRIPT_URL + '?' + params.toString());
+    await iframeGet(GOOGLE_SCRIPT_URL + '?' + params.toString());
 
     // 照片用 POST（較大）
     if (record.photo) {
@@ -563,53 +563,50 @@ function callback(data) {
   console.log('Google Script response:', data);
 }
 
-function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = url;
-    s.onload = () => { s.remove(); resolve(); };
-    s.onerror = () => { s.remove(); reject(new Error('Script load failed')); };
-    document.head.appendChild(s);
+function iframeGet(url) {
+  return new Promise((resolve) => {
+    let iframe = document.getElementById('data_frame');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'data_frame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    iframe.onload = () => resolve();
+    setTimeout(() => resolve(), 8000);
+    iframe.src = url;
   });
 }
 
 async function testUpload() {
   if (!currentUser) { toast('請先登入'); return; }
   toast('測試中...');
-  try {
-    const params = new URLSearchParams({
-      action: 'checkin',
-      id: currentUser.id,
-      name: currentUser.name,
-      date: todayStr(),
-      time: formatTime(new Date().toISOString()),
-      type: '測試',
-      lat: '24.22',
-      lng: '120.63',
-      acc: '0',
-      dist: '0'
-    });
-    const url = GOOGLE_SCRIPT_URL + '?' + params.toString();
-    console.log('Test URL:', url);
 
-    // 方法1: script tag
-    try {
-      await loadScript(url);
-      toast('Script 方式已送出，請查看 Sheet');
-      return;
-    } catch (e1) {
-      console.log('Script method failed:', e1);
-    }
+  const params = new URLSearchParams({
+    action: 'checkin',
+    id: currentUser.id,
+    name: currentUser.name,
+    date: todayStr(),
+    time: formatTime(new Date().toISOString()),
+    type: '測試',
+    lat: '24.22',
+    lng: '120.63',
+    acc: '0',
+    dist: '0'
+  });
+  const url = GOOGLE_SCRIPT_URL + '?' + params.toString();
 
-    // 方法2: img tag
-    const img = new Image();
-    img.src = url;
-    toast('Image 方式已送出，請查看 Sheet');
-
-  } catch (e) {
-    toast('測試失敗: ' + e.message);
-    console.error(e);
+  // 方法: iframe 載入（最可靠）
+  let iframe = document.getElementById('test_frame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'test_frame';
+    iframe.name = 'test_frame';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
   }
+  iframe.src = url;
+  toast('已送出，請等 5 秒後查看 Sheet');
 }
 
 function postPhoto(base64, photoName) {
