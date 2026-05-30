@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>雲端打卡簽到系統 — NCNU EMBA</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#1a73e8;
+  --success:#0d9488;
+  --danger:#dc2626;
+  --warn:#f59e0b;
+  --bg:#f0f4f8;
+  --card:#fff;
+  --text:#1e293b;
+  --muted:#64748b;
+  --radius:16px;
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100dvh;display:flex;flex-direction:column;
+}
+header{
+  background:linear-gradient(135deg,#1a73e8,#0d47a1);
+  color:#fff;padding:20px 16px 16px;text-align:center;
+  box-shadow:0 2px 12px rgba(0,0,0,.15);
+}
+header h1{font-size:1.2rem;font-weight:700;margin-bottom:4px}
+header .subtitle{font-size:.8rem;opacity:.85;margin-bottom:2px}
+header .datetime{font-size:.75rem;opacity:.7;font-family:monospace}
+.container{flex:1;padding:16px;max-width:480px;margin:0 auto;width:100%}
+
+.login-card{
+  background:var(--card);border-radius:var(--radius);padding:24px 20px;
+  text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px;
+}
+.login-card h2{font-size:1rem;margin-bottom:16px;color:var(--muted)}
+.login-card select{
+  width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;
+  font-size:1rem;margin-bottom:12px;appearance:auto;
+}
+.login-card .student-name{
+  font-size:1.2rem;font-weight:700;color:var(--primary);margin-bottom:12px;
+}
+
+.status-card{
+  background:var(--card);border-radius:var(--radius);padding:24px 20px;
+  text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px;
+}
+.status-icon{font-size:3rem;margin-bottom:12px}
+.status-text{font-size:1rem;color:var(--muted);margin-bottom:8px}
+.status-detail{font-size:.85rem;color:var(--muted)}
+
+.btn{
+  display:block;width:100%;padding:16px;border:none;border-radius:var(--radius);
+  font-size:1.1rem;font-weight:600;cursor:pointer;
+  transition:transform .1s,box-shadow .2s;
+  margin-bottom:12px;color:#fff;
+}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-checkin{background:linear-gradient(135deg,var(--success),#059669)}
+.btn-checkout{background:linear-gradient(135deg,var(--danger),#b91c1c)}
+.btn-login{background:linear-gradient(135deg,var(--primary),#0d47a1)}
+.btn-secondary{background:var(--muted);font-size:.9rem;padding:12px}
+.btn-small{font-size:.8rem;padding:10px;margin:0}
+
+.user-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);border-radius:12px;padding:10px 16px;
+  margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05);
+  font-size:.85rem;
+}
+.user-bar .name{font-weight:600;color:var(--primary)}
+.user-bar .logout{
+  background:none;border:1px solid #ddd;border-radius:8px;
+  padding:4px 12px;font-size:.75rem;cursor:pointer;color:var(--muted);
+}
+
+.accuracy-bar{
+  display:flex;align-items:center;gap:8px;
+  background:var(--card);border-radius:12px;padding:12px 16px;
+  margin-bottom:16px;font-size:.8rem;color:var(--muted);
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.accuracy-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-good{background:var(--success)}
+.dot-warn{background:var(--warn)}
+.dot-bad{background:var(--danger)}
+
+.records-section{margin-top:8px}
+.records-section h2{font-size:1rem;margin-bottom:12px;color:var(--muted)}
+.record-item{
+  background:var(--card);border-radius:12px;padding:14px 16px;
+  margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.04);font-size:.85rem;
+}
+.record-type{
+  display:inline-block;padding:3px 10px;border-radius:20px;
+  font-size:.75rem;font-weight:600;color:#fff;
+}
+.type-in{background:var(--success)}
+.type-out{background:var(--danger)}
+.record-time{color:var(--text);font-weight:500}
+.record-date{color:var(--muted);font-size:.75rem}
+
+.settings-panel{
+  background:var(--card);border-radius:var(--radius);padding:20px;
+  margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);
+  display:none;
+}
+.settings-panel h3{font-size:.95rem;margin-bottom:12px}
+.settings-panel label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+.settings-panel input{
+  width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;
+  font-size:.85rem;margin-bottom:12px;
+}
+.settings-panel .btn{font-size:.85rem;padding:10px}
+
+.export-bar{
+  display:flex;gap:8px;margin-top:8px;
+}
+.export-bar .btn{flex:1;font-size:.8rem;padding:10px;margin:0}
+
+.folder-bar{
+  display:flex;align-items:center;gap:8px;
+  background:#e8f5e9;border-radius:12px;padding:10px 16px;
+  margin-bottom:16px;font-size:.78rem;color:#2e7d32;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.folder-bar.disconnected{background:#fff3e0;color:#e65100}
+
+.empty-msg{text-align:center;color:var(--muted);font-size:.85rem;padding:32px 0}
+
+.toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);
+  background:#333;color:#fff;padding:12px 24px;border-radius:30px;
+  font-size:.85rem;font-weight:500;z-index:999;
+  transition:transform .3s ease;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* Camera Modal */
+.camera-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;
+}
+.camera-overlay.hidden{display:none}
+.camera-title{color:#fff;font-size:1.1rem;font-weight:600;margin-bottom:12px}
+.camera-video{
+  width:100%;max-width:400px;border-radius:12px;
+  transform:scaleX(-1);background:#000;
+}
+.camera-canvas{display:none}
+.camera-preview{
+  width:100%;max-width:400px;border-radius:12px;
+  transform:scaleX(-1);
+}
+.camera-btns{
+  display:flex;gap:12px;margin-top:16px;width:100%;max-width:400px;
+}
+.camera-btns .btn{flex:1;margin:0;padding:14px;font-size:1rem}
+.btn-capture{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.btn-cancel{background:linear-gradient(135deg,#6b7280,#4b5563)}
+.btn-retake{background:linear-gradient(135deg,#6b7280,#4b5563)}
+.btn-confirm{background:linear-gradient(135deg,var(--success),#059669)}
+
+footer{text-align:center;padding:16px 12px;font-size:.72rem;color:var(--muted)}
+footer a{color:var(--primary);text-decoration:none}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>國立暨南國際大學管理學院 EMBA</h1>
+  <div class="subtitle">雲端打卡簽到系統</div>
+  <div class="datetime" id="headerDatetime"></div>
+</header>
+
+<div class="container">
+
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2>請選擇學號登入</h2>
+      <select id="studentSelect" onchange="onStudentSelect()">
+        <option value="">— 請選擇 —</option>
+      </select>
+      <div class="student-name" id="selectedName" style="display:none"></div>
+      <button class="btn btn-login" id="btnLogin" disabled onclick="doLogin()">登入</button>
+    </div>
+  </div>
+
+  <div id="mainApp" style="display:none">
+
+    <div class="user-bar">
+      <div><span class="name" id="currentUserName"></span> <span id="currentUserId" style="color:var(--muted);font-size:.75rem"></span></div>
+      <button class="logout" onclick="doLogout()">登出</button>
+    </div>
+
+    <div class="folder-bar disconnected" id="folderBar">
+      <span id="folderText">尚未連結儲存資料夾</span>
+      <button class="logout" style="margin-left:auto;white-space:nowrap" onclick="pickFolder()">選擇資料夾</button>
+    </div>
+
+    <div class="status-card">
+      <div class="status-icon" id="statusIcon">📍</div>
+      <div class="status-text" id="statusText">正在取得定位...</div>
+      <div class="status-detail" id="statusDetail"></div>
+    </div>
+
+    <div class="accuracy-bar" id="accuracyBar" style="display:none">
+      <div class="accuracy-dot" id="accuracyDot"></div>
+      <span id="accuracyText"></span>
+    </div>
+
+    <button class="btn btn-checkin" id="btnCheckin" disabled onclick="doCheck('in')">簽到</button>
+    <button class="btn btn-checkout" id="btnCheckout" disabled onclick="doCheck('out')">簽退</button>
+
+    <div class="records-section">
+      <h2>今日紀錄</h2>
+      <div id="todayRecords"></div>
+    </div>
+
+    <div class="export-bar">
+      <button class="btn btn-secondary btn-small" onclick="showAllRecords()">歷史紀錄</button>
+      <button class="btn btn-secondary btn-small" onclick="exportCSV()">匯出 CSV</button>
+      <button class="btn btn-secondary btn-small" onclick="toggleSettings()">設定</button>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+      <h3>打卡地點設定</h3>
+      <label>地點名稱</label>
+      <input type="text" id="setName" placeholder="公司名稱">
+      <label>緯度 (Latitude)</label>
+      <input type="number" id="setLat" step="0.0000001" placeholder="24.2336">
+      <label>經度 (Longitude)</label>
+      <input type="number" id="setLng" step="0.0000001" placeholder="120.6347">
+      <label>允許半徑 (公尺)</label>
+      <input type="number" id="setRadius" step="10" placeholder="100">
+      <label>GPS 精度門檻 (公尺，超過此值禁止打卡)</label>
+      <input type="number" id="setAccThreshold" step="10" placeholder="150">
+      <button class="btn btn-checkin" onclick="saveSettings()">儲存設定</button>
+    </div>
+
+    <div class="records-section" id="allRecordsSection" style="display:none;margin-top:16px">
+      <h2>所有歷史紀錄</h2>
+      <div id="allRecords"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Camera Modal -->
+<div class="camera-overlay hidden" id="cameraOverlay">
+  <div class="camera-title" id="cameraTitle">拍照打卡</div>
+  <video class="camera-video" id="cameraVideo" autoplay playsinline></video>
+  <canvas class="camera-canvas" id="cameraCanvas"></canvas>
+  <img class="camera-preview" id="cameraPreview" style="display:none">
+  <div class="camera-btns" id="cameraBtnsLive">
+    <button class="btn btn-cancel" onclick="cancelCamera()">取消</button>
+    <button class="btn btn-capture" onclick="capturePhoto()">拍照</button>
+  </div>
+  <div class="camera-btns" id="cameraBtnsReview" style="display:none">
+    <button class="btn btn-retake" onclick="retakePhoto()">重拍</button>
+    <button class="btn btn-confirm" onclick="confirmPhoto()">確認送出</button>
+  </div>
+</div>
+
+<footer>
+  Creator: <a href="https://www.ibs.ncnu.edu.tw/index.php/faculty/tenured-professor/299-smlo" target="_blank" rel="noopener">Prof. Shihmin Lo</a>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STUDENTS = {
+  '113243501': '徐懷恩',
+  '113243502': '白湘苓',
+  '113243505': '武承璿',
+  '113243506': '蔡筱蕎',
+  '113243507': '詹振誠',
+  '113243508': '林佳千',
+  '113243509': '許安裕',
+  '113243510': '楊宓潔',
+  '113243511': '張祐任',
+  '113243512': '汪亦祥',
+  '113243513': '林明政',
+  '113243514': '蔡淑珍',
+  '114243501': '吳秋凉',
+  '114243503': '楊謹禎',
+  '114243504': '蘇俞臻',
+  '114243505': '陳柏齊',
+  '114243506': '吳俊賢',
+  '114243507': '李玟瑩',
+  '114243508': '蔡雨蓁',
+  '114243509': '蔡佩眞',
+  '114243510': '武沁縈',
+  '114243511': '張峻誠',
+  '114243512': '陳泳頤',
+  '114243513': '林芝伃',
+  '114243514': '林志貞'
+};
+
+const DEFAULT_CONFIG = {
+  name: '中科106會議室（台中市大雅區科雅路48號）',
+  lat: 24.2336,
+  lng: 120.6347,
+  radius: 100,
+  accThreshold: 150
+};
+
+let currentUser = null;
+let dirHandle = null;
+let currentPosition = null;
+let currentAccuracy = null;
+let currentDistance = null;
+let watchId = null;
+
+// Camera state
+let cameraStream = null;
+let pendingCheckType = null;
+let capturedBlob = null;
+
+// ── Header Clock ──
+function updateClock() {
+  const now = new Date();
+  document.getElementById('headerDatetime').textContent =
+    now.toLocaleDateString('zh-TW', {year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}) +
+    ' ' + now.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Student Select ──
+(function populateSelect() {
+  const sel = document.getElementById('studentSelect');
+  const ids113 = Object.keys(STUDENTS).filter(k => k.startsWith('113')).sort();
+  const ids114 = Object.keys(STUDENTS).filter(k => k.startsWith('114')).sort();
+
+  const g113 = document.createElement('optgroup');
+  g113.label = '113 級';
+  ids113.forEach(id => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = `${id}　${STUDENTS[id]}`;
+    g113.appendChild(o);
+  });
+  sel.appendChild(g113);
+
+  const g114 = document.createElement('optgroup');
+  g114.label = '114 級';
+  ids114.forEach(id => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = `${id}　${STUDENTS[id]}`;
+    g114.appendChild(o);
+  });
+  sel.appendChild(g114);
+})();
+
+function onStudentSelect() {
+  const id = document.getElementById('studentSelect').value;
+  const nameEl = document.getElementById('selectedName');
+  const btn = document.getElementById('btnLogin');
+  if (id && STUDENTS[id]) {
+    nameEl.textContent = STUDENTS[id];
+    nameEl.style.display = 'block';
+    btn.disabled = false;
+  } else {
+    nameEl.style.display = 'none';
+    btn.disabled = true;
+  }
+}
+
+function doLogin() {
+  const id = document.getElementById('studentSelect').value;
+  if (!id) return;
+  currentUser = { id, name: STUDENTS[id] };
+  localStorage.setItem('checkin_user', JSON.stringify(currentUser));
+  showMainApp();
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('checkin_user');
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('mainApp').style.display = 'none';
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+}
+
+function showMainApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = '';
+  document.getElementById('currentUserName').textContent = currentUser.name;
+  document.getElementById('currentUserId').textContent = `(${currentUser.id})`;
+  renderTodayRecords();
+  startGPS();
+}
+
+(function autoLogin() {
+  const saved = localStorage.getItem('checkin_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    if (STUDENTS[currentUser.id]) { showMainApp(); return; }
+  }
+})();
+
+// ── Camera ──
+async function openCamera(type) {
+  pendingCheckType = type;
+  capturedBlob = null;
+  const overlay = document.getElementById('cameraOverlay');
+  const video = document.getElementById('cameraVideo');
+  const preview = document.getElementById('cameraPreview');
+
+  document.getElementById('cameraTitle').textContent =
+    type === 'in' ? '拍照簽到' : '拍照簽退';
+
+  video.style.display = '';
+  preview.style.display = 'none';
+  document.getElementById('cameraBtnsLive').style.display = 'flex';
+  document.getElementById('cameraBtnsReview').style.display = 'none';
+  overlay.classList.remove('hidden');
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    });
+    video.srcObject = cameraStream;
+  } catch (e) {
+    toast('無法開啟相機，請確認權限');
+    overlay.classList.add('hidden');
+    pendingCheckType = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  const preview = document.getElementById('cameraPreview');
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  const now = new Date();
+  const stamp = `${currentUser.name} (${currentUser.id}) | ${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW')} | ${pendingCheckType === 'in' ? '簽到' : '簽退'}`;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, canvas.height - 32, canvas.width, 32);
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(stamp, canvas.width / 2, canvas.height - 10);
+
+  canvas.toBlob(blob => {
+    capturedBlob = blob;
+    preview.src = URL.createObjectURL(blob);
+    video.style.display = 'none';
+    preview.style.display = '';
+    document.getElementById('cameraBtnsLive').style.display = 'none';
+    document.getElementById('cameraBtnsReview').style.display = 'flex';
+  }, 'image/jpeg', 0.85);
+}
+
+function retakePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const preview = document.getElementById('cameraPreview');
+  video.style.display = '';
+  preview.style.display = 'none';
+  document.getElementById('cameraBtnsLive').style.display = 'flex';
+  document.getElementById('cameraBtnsReview').style.display = 'none';
+  capturedBlob = null;
+}
+
+function cancelCamera() {
+  stopCamera();
+  document.getElementById('cameraOverlay').classList.add('hidden');
+  pendingCheckType = null;
+  capturedBlob = null;
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+}
+
+async function confirmPhoto() {
+  stopCamera();
+  document.getElementById('cameraOverlay').classList.add('hidden');
+  await finalizeCheck(pendingCheckType, capturedBlob);
+  pendingCheckType = null;
+  capturedBlob = null;
+}
+
+// ── Check-in Flow ──
+function doCheck(type) {
+  if (!currentPosition || !currentUser) return;
+  const config = getConfig();
+  if (currentDistance > config.radius) { toast('不在打卡範圍內！'); return; }
+  if (currentAccuracy > config.accThreshold) { toast('GPS 精度不足！'); return; }
+  openCamera(type);
+}
+
+async function finalizeCheck(type, photoBlob) {
+  const now = new Date();
+  const record = {
+    type,
+    timestamp: now.toISOString(),
+    date: todayStr(),
+    studentId: currentUser.id,
+    studentName: currentUser.name,
+    lat: currentPosition.lat,
+    lng: currentPosition.lng,
+    accuracy: currentAccuracy,
+    distance: currentDistance
+  };
+
+  const records = getRecords();
+  records.push(record);
+  saveRecords(records);
+  renderTodayRecords();
+
+  if (dirHandle) {
+    const timeTag = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const photoName = `${record.date}_${timeTag}_${currentUser.id}_${currentUser.name}_${type === 'in' ? '簽到' : '簽退'}.jpg`;
+    await savePhotoToFolder(photoBlob, photoName);
+    await saveToExcel(record);
+  }
+
+  toast(type === 'in' ? '簽到成功！' : '簽退成功！');
+}
+
+// ── File System Access API ──
+async function pickFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    toast('此瀏覽器不支援資料夾存取，請使用 Chrome');
+    return;
+  }
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    updateFolderBar();
+    toast('資料夾已連結！');
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('無法取得資料夾權限');
+  }
+}
+
+function updateFolderBar() {
+  const bar = document.getElementById('folderBar');
+  const text = document.getElementById('folderText');
+  if (dirHandle) {
+    bar.classList.remove('disconnected');
+    text.textContent = `已連結：${dirHandle.name}`;
+  } else {
+    bar.classList.add('disconnected');
+    text.textContent = '尚未連結儲存資料夾';
+  }
+}
+
+async function savePhotoToFolder(blob, fileName) {
+  if (!dirHandle || !blob) return;
+  try {
+    let photosDir;
+    try {
+      photosDir = await dirHandle.getDirectoryHandle('打卡照片', { create: true });
+    } catch (e) { photosDir = dirHandle; }
+    const fh = await photosDir.getFileHandle(fileName, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+  } catch (e) {
+    console.error('Photo save error:', e);
+  }
+}
+
+async function saveToExcel(record) {
+  if (!dirHandle) return;
+  try {
+    const fileName = `打卡紀錄.xlsx`;
+    let wb;
+    try {
+      const existFile = await dirHandle.getFileHandle(fileName);
+      const file = await existFile.getFile();
+      const buf = await file.arrayBuffer();
+      wb = XLSX.read(buf, { type: 'array' });
+    } catch (e) {
+      wb = XLSX.utils.book_new();
+    }
+
+    const sheetName = '打卡紀錄';
+    let data;
+    if (wb.SheetNames.includes(sheetName)) {
+      const ws = wb.Sheets[sheetName];
+      data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    } else {
+      data = [['學號', '姓名', '日期', '時間', '類型', '緯度', '經度', '精度(m)', '距離(m)', '照片檔名']];
+    }
+
+    const timeTag = new Date(record.timestamp).toTimeString().slice(0, 8).replace(/:/g, '');
+    const photoName = `${record.date}_${timeTag}_${record.studentId}_${record.studentName}_${record.type === 'in' ? '簽到' : '簽退'}.jpg`;
+
+    data.push([
+      record.studentId,
+      record.studentName,
+      record.date,
+      formatTime(record.timestamp),
+      record.type === 'in' ? '簽到' : '簽退',
+      record.lat,
+      record.lng,
+      record.accuracy,
+      record.distance,
+      photoName
+    ]);
+
+    const newWs = XLSX.utils.aoa_to_sheet(data);
+    const colWidths = [12, 8, 12, 10, 6, 12, 12, 8, 8, 45];
+    newWs['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    if (wb.SheetNames.includes(sheetName)) {
+      wb.Sheets[sheetName] = newWs;
+    } else {
+      XLSX.utils.book_append_sheet(wb, newWs, sheetName);
+    }
+
+    const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const fh = await dirHandle.getFileHandle(fileName, { create: true });
+    const writable = await fh.createWritable();
+    await writable.write(new Uint8Array(wbOut));
+    await writable.close();
+  } catch (e) {
+    console.error('Excel save error:', e);
+    toast('儲存 Excel 失敗');
+  }
+}
+
+// ── Config & Records ──
+function getConfig() {
+  const saved = localStorage.getItem('checkin_config');
+  return saved ? JSON.parse(saved) : { ...DEFAULT_CONFIG };
+}
+
+function getRecords() {
+  const saved = localStorage.getItem('checkin_records');
+  return saved ? JSON.parse(saved) : [];
+}
+
+function saveRecords(records) {
+  localStorage.setItem('checkin_records', JSON.stringify(records));
+}
+
+// ── GPS ──
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' });
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function renderTodayRecords() {
+  const container = document.getElementById('todayRecords');
+  const today = todayStr();
+  const records = getRecords().filter(r => r.date === today && r.studentId === currentUser?.id).reverse();
+  if (!records.length) {
+    container.innerHTML = '<div class="empty-msg">今日尚無打卡紀錄</div>';
+    return;
+  }
+  container.innerHTML = records.map(r => `
+    <div class="record-item">
+      <div>
+        <span class="record-type ${r.type === 'in' ? 'type-in' : 'type-out'}">${r.type === 'in' ? '簽到' : '簽退'}</span>
+      </div>
+      <div style="text-align:right">
+        <div class="record-time">${formatTime(r.timestamp)}</div>
+        <div class="record-date">距離 ${r.distance}m · 精度 ${r.accuracy}m</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateGPS(pos) {
+  const config = getConfig();
+  const { latitude, longitude, accuracy } = pos.coords;
+  currentPosition = { lat: latitude, lng: longitude };
+  currentAccuracy = Math.round(accuracy);
+  currentDistance = Math.round(haversine(latitude, longitude, config.lat, config.lng));
+
+  const statusIcon = document.getElementById('statusIcon');
+  const statusText = document.getElementById('statusText');
+  const statusDetail = document.getElementById('statusDetail');
+  const accuracyBar = document.getElementById('accuracyBar');
+  const accuracyDot = document.getElementById('accuracyDot');
+  const accuracyText = document.getElementById('accuracyText');
+  const btnIn = document.getElementById('btnCheckin');
+  const btnOut = document.getElementById('btnCheckout');
+
+  accuracyBar.style.display = 'flex';
+
+  if (currentAccuracy > config.accThreshold) {
+    statusIcon.textContent = '⚠️';
+    statusText.textContent = 'GPS 精度不足，無法打卡';
+    statusDetail.textContent = `請使用手機並開啟 GPS（目前精度 ${currentAccuracy}m）`;
+    accuracyDot.className = 'accuracy-dot dot-bad';
+    accuracyText.textContent = `精度 ${currentAccuracy}m（需 < ${config.accThreshold}m）`;
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+    return;
+  }
+
+  if (currentAccuracy <= 30) accuracyDot.className = 'accuracy-dot dot-good';
+  else if (currentAccuracy <= 80) accuracyDot.className = 'accuracy-dot dot-warn';
+  else accuracyDot.className = 'accuracy-dot dot-bad';
+  accuracyText.textContent = `GPS 精度 ${currentAccuracy}m · 距打卡點 ${currentDistance}m`;
+
+  if (currentDistance <= config.radius) {
+    statusIcon.textContent = '✅';
+    statusText.textContent = '您在打卡範圍內';
+    statusDetail.textContent = `距離打卡點 ${currentDistance} 公尺`;
+    btnIn.disabled = false;
+    btnOut.disabled = false;
+  } else {
+    statusIcon.textContent = '❌';
+    statusText.textContent = '不在打卡範圍內';
+    statusDetail.textContent = `距離打卡點 ${currentDistance} 公尺（需在 ${config.radius}m 內）`;
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+  }
+}
+
+function gpsError(err) {
+  document.getElementById('statusIcon').textContent = '🚫';
+  if (err.code === 1) {
+    document.getElementById('statusText').textContent = '定位權限被拒絕';
+    document.getElementById('statusDetail').textContent = '請在瀏覽器設定中允許定位權限';
+  } else if (err.code === 2) {
+    document.getElementById('statusText').textContent = '無法取得定位';
+    document.getElementById('statusDetail').textContent = '請確認已開啟 GPS';
+  } else {
+    document.getElementById('statusText').textContent = '定位逾時';
+    document.getElementById('statusDetail').textContent = '請移至收訊較好的位置重試';
+  }
+}
+
+function startGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById('statusIcon').textContent = '🚫';
+    document.getElementById('statusText').textContent = '此瀏覽器不支援定位';
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(updateGPS, gpsError, {
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 5000
+  });
+}
+
+function showAllRecords() {
+  const section = document.getElementById('allRecordsSection');
+  const container = document.getElementById('allRecords');
+  if (section.style.display === 'none') {
+    section.style.display = 'block';
+    const records = getRecords().filter(r => r.studentId === currentUser?.id).reverse();
+    if (!records.length) {
+      container.innerHTML = '<div class="empty-msg">尚無任何紀錄</div>';
+      return;
+    }
+    container.innerHTML = records.map(r => `
+      <div class="record-item">
+        <div>
+          <span class="record-type ${r.type === 'in' ? 'type-in' : 'type-out'}">${r.type === 'in' ? '簽到' : '簽退'}</span>
+          <span class="record-date" style="margin-left:8px">${formatDate(r.timestamp)}</span>
+        </div>
+        <div style="text-align:right">
+          <div class="record-time">${formatTime(r.timestamp)}</div>
+          <div class="record-date">距離 ${r.distance}m</div>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+function exportCSV() {
+  const records = getRecords().filter(r => r.studentId === currentUser?.id);
+  if (!records.length) { toast('沒有紀錄可匯出'); return; }
+  const header = '學號,姓名,日期,時間,類型,緯度,經度,精度(m),距離(m)\n';
+  const rows = records.map(r =>
+    `${r.studentId},${r.studentName},${r.date},${formatTime(r.timestamp)},${r.type === 'in' ? '簽到' : '簽退'},${r.lat},${r.lng},${r.accuracy},${r.distance}`
+  ).join('\n');
+  const blob = new Blob(['﻿' + header + rows], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `打卡紀錄_${currentUser.id}_${todayStr()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV 已下載');
+}
+
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  if (panel.style.display === 'none') {
+    const config = getConfig();
+    document.getElementById('setName').value = config.name;
+    document.getElementById('setLat').value = config.lat;
+    document.getElementById('setLng').value = config.lng;
+    document.getElementById('setRadius').value = config.radius;
+    document.getElementById('setAccThreshold').value = config.accThreshold;
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function saveSettings() {
+  const config = {
+    name: document.getElementById('setName').value || DEFAULT_CONFIG.name,
+    lat: parseFloat(document.getElementById('setLat').value) || DEFAULT_CONFIG.lat,
+    lng: parseFloat(document.getElementById('setLng').value) || DEFAULT_CONFIG.lng,
+    radius: parseInt(document.getElementById('setRadius').value) || DEFAULT_CONFIG.radius,
+    accThreshold: parseInt(document.getElementById('setAccThreshold').value) || DEFAULT_CONFIG.accThreshold
+  };
+  localStorage.setItem('checkin_config', JSON.stringify(config));
+  document.getElementById('settingsPanel').style.display = 'none';
+  toast('設定已儲存');
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  startGPS();
+}
+</script>
+</body>
+</html>
